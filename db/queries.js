@@ -463,41 +463,32 @@ async function projectTaskSummary(db, ownerId) {
   const tasks = db.collection('tasks');
 
   const pipeline = [
-    // 1. filter tasks of this user
     {
       $match: {
         ownerId: ownerId
       }
     },
-
-    // 2. group by projectId
     {
       $group: {
         _id: "$projectId",
-
         todo: {
           $sum: {
             $cond: [{ $eq: ["$status", "todo"] }, 1, 0]
           }
         },
-
         inProgress: {
           $sum: {
             $cond: [{ $eq: ["$status", "in-progress"] }, 1, 0]
           }
         },
-
         done: {
           $sum: {
             $cond: [{ $eq: ["$status", "done"] }, 1, 0]
           }
         },
-
         total: { $sum: 1 }
       }
     },
-
-    // 3. join with projects collection
     {
       $lookup: {
         from: "projects",
@@ -506,13 +497,9 @@ async function projectTaskSummary(db, ownerId) {
         as: "project"
       }
     },
-
-    // 4. flatten project array
     {
       $unwind: "$project"
     },
-
-    // 5. reshape output
     {
       $project: {
         _id: 1,
@@ -526,6 +513,9 @@ async function projectTaskSummary(db, ownerId) {
   ];
 
   const result = await tasks.aggregate(pipeline).toArray();
+
+  // 🔷 LOG RESULT
+  console.log("Project Task Summary:", result);
 
   return result;
 }
@@ -558,9 +548,66 @@ async function projectTaskSummary(db, ownerId) {
  * Hint: putting $sort and $limit BEFORE $lookup is intentional —
  *       you only want to look up 10 projects, not all of them.
  */
+/**
+ * Query 15: recentActivityFeed
+ * -------------------------------------------------------------
+ * Get the 10 most recent tasks with their project names.
+ */
 async function recentActivityFeed(db, ownerId) {
-  // TODO: implement
-  throw new Error('recentActivityFeed not implemented');
+  const tasksCollection = db.collection('tasks');
+
+  const pipeline = [
+    // 1. filter tasks of this user
+    {
+      $match: {
+        ownerId: ownerId
+      }
+    },
+
+    // 2. sort newest first
+    {
+      $sort: {
+        createdAt: -1
+      }
+    },
+
+    // 3. limit to 10
+    {
+      $limit: 10
+    },
+
+    // 4. join with projects
+    {
+      $lookup: {
+        from: "projects",
+        localField: "projectId",
+        foreignField: "_id",
+        as: "project"
+      }
+    },
+
+    // 5. flatten array
+    {
+      $unwind: "$project"
+    },
+
+    // 6. final shape
+    {
+      $project: {
+        _id: 1,
+        title: 1,
+        status: 1,
+        priority: 1,
+        createdAt: 1,
+        projectId: 1,
+        projectName: "$project.name"
+      }
+    }
+  ];
+
+  const result = await tasksCollection.aggregate(pipeline).toArray();
+
+  return result;
 }
 
 // =============================================================================
