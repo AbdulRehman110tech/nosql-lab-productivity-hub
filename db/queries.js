@@ -24,15 +24,25 @@
 
 const { ObjectId } = require('mongodb');
 
-/**
+/*
  * Query 1: signupUser
  * -------------------------------------------------------------
  * Insert a new user document. Email must be globally unique
  * (a duplicate email should be rejected by the database).
  *
- * @param {Db} db
- * @param {{ email: string, passwordHash: string, name: string }} userData
- * @returns {Promise<{ insertedId: ObjectId }>}
+ */
+async function signupUser(db, userData) {
+  const result = await db.collection('users').insertOne({
+    email: userData.email,
+    passwordHash: userData.passwordHash,
+    name: userData.name,
+    createdAt: new Date()
+  });
+
+  return { insertedId: result.insertedId };
+}
+
+/*
  *
  * Expected behaviour:
  *   - If email is unique → returns { insertedId: <new ObjectId> }
@@ -43,12 +53,8 @@ const { ObjectId } = require('mongodb');
  *
  * Hint: insertOne. Nothing fancy.
  */
-async function signupUser(db, userData) {
-  // TODO: implement
-  throw new Error('signupUser not implemented');
-}
 
-/**
+/** 
  * Query 2: loginFindUser
  * -------------------------------------------------------------
  * Find a user by email so the route can compare passwords.
@@ -64,8 +70,7 @@ async function signupUser(db, userData) {
  * Hint: findOne with an exact-match filter.
  */
 async function loginFindUser(db, email) {
-  // TODO: implement
-  throw new Error('loginFindUser not implemented');
+  return await db.collection('users').findOne({ email });
 }
 
 /**
@@ -84,8 +89,10 @@ async function loginFindUser(db, email) {
  * Hint: find with two filter conditions, then .sort().toArray().
  */
 async function listUserProjects(db, ownerId) {
-  // TODO: implement
-  throw new Error('listUserProjects not implemented');
+  return await db.collection('projects')
+    .find({ userId: ownerId, archived: false })
+    .sort({ createdAt: -1 })
+    .toArray();
 }
 
 /**
@@ -102,8 +109,15 @@ async function listUserProjects(db, ownerId) {
  * Hint: insertOne again — just remember to add the defaults yourself.
  */
 async function createProject(db, projectData) {
-  // TODO: implement
-  throw new Error('createProject not implemented');
+  const result = await db.collection('projects').insertOne({
+    userId: projectData.ownerId,
+    name: projectData.name,
+    description: projectData.description || "",
+    archived: false,
+    createdAt: new Date()
+  });
+
+  return { insertedId: result.insertedId };
 }
 
 /**
@@ -122,8 +136,10 @@ async function createProject(db, projectData) {
  * Hint: updateOne with the $set operator.
  */
 async function archiveProject(db, projectId) {
-  // TODO: implement
-  throw new Error('archiveProject not implemented');
+  return await db.collection('projects').updateOne(
+    { _id: projectId },
+    { $set: { archived: true } }
+  );
 }
 
 /**
@@ -144,8 +160,17 @@ async function archiveProject(db, projectId) {
  *       the caller passed one. Then chain .sort({ priority: -1, createdAt: -1 }).
  */
 async function listProjectTasks(db, projectId, status) {
-  // TODO: implement
-  throw new Error('listProjectTasks not implemented');
+  const filter = { projectId };
+
+  // add status ONLY if provided
+  if (status) {
+    filter.status = status;
+  }
+
+  return await db.collection('tasks')
+    .find(filter)
+    .sort({ priority: -1, createdAt: -1 })
+    .toArray();
 }
 
 /**
