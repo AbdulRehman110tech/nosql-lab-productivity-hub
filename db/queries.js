@@ -136,10 +136,21 @@ async function createProject(db, projectData) {
  * Hint: updateOne with the $set operator.
  */
 async function archiveProject(db, projectId) {
-  return await db.collection('projects').updateOne(
-    { _id: projectId },
-    { $set: { archived: true } }
-  );
+  const projects = db.collection('projects');
+
+  const update = {
+    $set: {
+      archived: true
+    }
+  };
+
+  const query = {
+    _id: projectId
+  };
+
+  const result = await projects.updateOne(query, update);
+
+  return result;
 }
 
 /**
@@ -160,19 +171,24 @@ async function archiveProject(db, projectId) {
  *       the caller passed one. Then chain .sort({ priority: -1, createdAt: -1 }).
  */
 async function listProjectTasks(db, projectId, status) {
-  const filter = { projectId };
+  const tasks = db.collection('tasks');
 
-  // add status ONLY if provided
-  if (status) {
-    filter.status = status;
+  let query = { projectId: projectId };
+
+  if (typeof status === "string" && status.length > 0) {
+    query.status = status;
   }
 
-  return await db.collection('tasks')
-    .find(filter)
-    .sort({ priority: -1, createdAt: -1 })
-    .toArray();
-}
+  const cursor = tasks.find(query);
 
+  cursor.sort({
+    priority: -1,
+    createdAt: -1
+  });
+
+  const results = await cursor.toArray();
+  return results;
+}
 /**
  * Query 7: createTask
  * -------------------------------------------------------------
@@ -195,8 +211,27 @@ async function listProjectTasks(db, projectId, status) {
  * Hint: insertOne. Apply defaults for any missing optional fields.
  */
 async function createTask(db, taskData) {
-  // TODO: implement
-  throw new Error('createTask not implemented');
+  const tasks = db.collection('tasks');
+
+  const newTask = {
+    ownerId: taskData.ownerId,
+    projectId: taskData.projectId,
+    title: taskData.title,
+    priority: taskData.priority != null ? taskData.priority : 1,
+    tags: Array.isArray(taskData.tags) ? taskData.tags : [],
+    subtasks: Array.isArray(taskData.subtasks) ? taskData.subtasks : [],
+    status: "todo",
+    createdAt: new Date()
+  };
+
+  // optional field (schema flexibility)
+  if (taskData.deadline) {
+    newTask.deadline = taskData.deadline;
+  }
+
+  const result = await tasks.insertOne(newTask);
+
+  return { insertedId: result.insertedId };
 }
 
 /**
@@ -212,8 +247,18 @@ async function createTask(db, taskData) {
  * Hint: updateOne + $set.
  */
 async function updateTaskStatus(db, taskId, newStatus) {
-  // TODO: implement
-  throw new Error('updateTaskStatus not implemented');
+  const tasks = db.collection('tasks');
+
+  const filter = { _id: taskId };
+
+  const updateOperation = {
+    $set: {
+      status: newStatus
+    }
+  };
+
+  const result = await tasks.updateOne(filter, updateOperation);
+  return result;
 }
 
 /**
@@ -233,8 +278,18 @@ async function updateTaskStatus(db, taskId, newStatus) {
  * Hint: which array operator silently skips duplicates? It is NOT $push.
  */
 async function addTaskTag(db, taskId, tag) {
-  // TODO: implement
-  throw new Error('addTaskTag not implemented');
+  const tasks = db.collection('tasks');
+
+  const query = { _id: taskId };
+
+  const update = {
+    $addToSet: {
+      tags: tag
+    }
+  };
+
+  const result = await tasks.updateOne(query, update);
+  return result;
 }
 
 /**
@@ -254,8 +309,18 @@ async function addTaskTag(db, taskId, tag) {
  * Hint: $pull.
  */
 async function removeTaskTag(db, taskId, tag) {
-  // TODO: implement
-  throw new Error('removeTaskTag not implemented');
+  const tasks = db.collection('tasks');
+
+  const condition = { _id: taskId };
+
+  const updateAction = {
+    $pull: {
+      tags: tag
+    }
+  };
+
+  const result = await tasks.updateOne(condition, updateAction);
+  return result;
 }
 
 /**
@@ -285,8 +350,22 @@ async function removeTaskTag(db, taskId, tag) {
  *       matched), and your $set path uses `subtasks.$.done`.
  */
 async function toggleSubtask(db, taskId, subtaskTitle, newDone) {
-  // TODO: implement
-  throw new Error('toggleSubtask not implemented');
+  const tasks = db.collection('tasks');
+
+  const filter = {
+    _id: taskId,
+    "subtasks.title": subtaskTitle
+  };
+
+  const updateDoc = {
+    $set: {
+      "subtasks.$.done": newDone
+    }
+  };
+
+  const result = await tasks.updateOne(filter, updateDoc);
+
+  return result;
 }
 
 /**
