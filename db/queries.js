@@ -380,8 +380,10 @@ async function toggleSubtask(db, taskId, subtaskTitle, newDone) {
  * Hint: deleteOne.
  */
 async function deleteTask(db, taskId) {
-  // TODO: implement
-  throw new Error('deleteTask not implemented');
+  const tasksCollection = db.collection('tasks');
+  const condition = { _id: taskId };
+  const result = await tasksCollection.deleteOne(condition);
+  return result;
 }
 
 /**
@@ -404,8 +406,24 @@ async function deleteTask(db, taskId) {
  *       Build the filter conditionally based on whether projectId was passed.
  */
 async function searchNotes(db, ownerId, tags, projectId) {
-  // TODO: implement
-  throw new Error('searchNotes not implemented');
+  const notesCollection = db.collection('notes');
+
+  const criteria = {
+    userId: ownerId,
+    tags: { $in: tags }
+  };
+
+  if (projectId) {
+    criteria.projectId = projectId;
+  }
+
+  const cursor = notesCollection.find(criteria);
+
+  cursor.sort({ createdAt: -1 });
+
+  const results = await cursor.toArray();
+
+  return results;
 }
 
 /**
@@ -442,8 +460,74 @@ async function searchNotes(db, ownerId, tags, projectId) {
  *       $unwind turns a 1-element array into the element itself.
  */
 async function projectTaskSummary(db, ownerId) {
-  // TODO: implement
-  throw new Error('projectTaskSummary not implemented');
+  const tasks = db.collection('tasks');
+
+  const pipeline = [
+    // 1. filter tasks of this user
+    {
+      $match: {
+        ownerId: ownerId
+      }
+    },
+
+    // 2. group by projectId
+    {
+      $group: {
+        _id: "$projectId",
+
+        todo: {
+          $sum: {
+            $cond: [{ $eq: ["$status", "todo"] }, 1, 0]
+          }
+        },
+
+        inProgress: {
+          $sum: {
+            $cond: [{ $eq: ["$status", "in-progress"] }, 1, 0]
+          }
+        },
+
+        done: {
+          $sum: {
+            $cond: [{ $eq: ["$status", "done"] }, 1, 0]
+          }
+        },
+
+        total: { $sum: 1 }
+      }
+    },
+
+    // 3. join with projects collection
+    {
+      $lookup: {
+        from: "projects",
+        localField: "_id",
+        foreignField: "_id",
+        as: "project"
+      }
+    },
+
+    // 4. flatten project array
+    {
+      $unwind: "$project"
+    },
+
+    // 5. reshape output
+    {
+      $project: {
+        _id: 1,
+        projectName: "$project.name",
+        todo: 1,
+        inProgress: 1,
+        done: 1,
+        total: 1
+      }
+    }
+  ];
+
+  const result = await tasks.aggregate(pipeline).toArray();
+
+  return result;
 }
 
 /**
